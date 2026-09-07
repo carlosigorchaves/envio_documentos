@@ -13,7 +13,6 @@ function lerExcel(buffer) {
   const wb   = XLSX.read(buffer, { type: 'buffer' })
   const ws   = wb.Sheets[wb.SheetNames[0]]
   const rows = XLSX.utils.sheet_to_json(ws, { defval: '' })
-
   return rows.map(row => {
     const c = {}, extras = {}
     for (const [k, v] of Object.entries(row)) {
@@ -27,14 +26,14 @@ function lerExcel(buffer) {
 
 export async function POST(req) {
   try {
-    const form     = await req.formData()
+    const form      = await req.formData()
     const excelFile = form.get('excel')
-    const pdfFile  = form.get('pdf')
-    const nomeDoc  = form.get('nomeDocumento') || 'Documento para assinatura'
-    const mensagem = form.get('mensagem') || ''
+    const pdfFile   = form.get('pdf')
+    const nomeDoc   = form.get('nomeDocumento') || 'Documento para assinatura'
+    const mensagem  = form.get('mensagem') || ''
 
     if (!excelFile) return NextResponse.json({ erro: 'Planilha Excel obrigatória.' }, { status: 400 })
-    if (!pdfFile)   return NextResponse.json({ erro: 'PDF obrigatório.' },            { status: 400 })
+    if (!pdfFile)   return NextResponse.json({ erro: 'PDF obrigatório.' }, { status: 400 })
 
     const excelBuf = Buffer.from(await excelFile.arrayBuffer())
     const pdfBuf   = Buffer.from(await pdfFile.arrayBuffer())
@@ -47,39 +46,49 @@ export async function POST(req) {
     const loteId = 'lote_' + Date.now()
     await inserirLote(colaboradores, loteId)
 
-    // Responde imediatamente e processa em background
-    const resposta = NextResponse.json({
-      ok: true, loteId, total: colaboradores.length, sandbox: isSandbox()
-    })
+    // Envio SÍNCRONO — aguarda cada envio antes de responder
+    const inseridos = await buscarPorLote(loteId)
+    const resultados = []
 
-    // Background: envia para cada colaborador
-    ;(async () => {
-      const inseridos = await buscarPorLote(loteId)
-      for (const col of inseridos) {
-        try {
-          const doc = await criarDocumento({
-            nome:        `${nomeDoc} - ${col.nome || col.email}`,
-            pdfBuffer:   pdfBuf,
-            pdfNome,
-            signatarios: [{ email: col.email, nome: col.nome }],
-            mensagem,
-          })
-          const sig = doc.signatures?.[0]
-          await marcarEnviado(col.id, {
-            documentId:        doc.id,
-            signaturePublicId: sig?.public_id,
-            linkAssinatura:    sig?.link?.short_link,
-          })
-        } catch (err) {
-          console.error(`[envio] ${col.email}: ${err.message}`)
-        }
+    for (const col of inseridos) {
+      try {
+        const doc = await criarDocumento({
+          nome:        `${nomeDoc} - ${col.nome || col.email}`,
+          pdfBuffer:   pdfBuf,
+          pdfNome,
+          signatarios: [{ email: col.email, nome: col.nome }],
+          mensagem,
+        })
+        const sig = doc.signatures?.[0]
+        await marcarEnviado(col.id, {
+          documentId:        doc.id,
+          signaturePublicId: sig?.public_id,
+          linkAssinatura:    sig?.link?.short_link,
+        })
+        resultados.push({ email: col.email, ok: true, documentId: doc.id })
+        console.log(`[ok] ${col.email} → ${doc.id}`)
+      } catch (err) {
+        resultados.push({ email: col.email, ok: false, erro: err.message })
+        console.error(`[erro] ${col.email}: ${err.message}`)
+      }
+      // Respeitar rate limit 60 req/min da Autentique
+      if (inseridos.indexOf(col) < inseridos.length - 1) {
         await new Promise(r => setTimeout(r, 1100))
       }
-      console.log(`[lote ${loteId}] concluído.`)
-    })()
+    }
 
-    return resposta
+    const enviados = resultados.filter(r => r.ok).length
+    return NextResponse.json({
+      ok: true,
+      loteId,
+      total: colaboradores.length,
+      enviados,
+      erros: resultados.filter(r => !r.ok).length,
+      sandbox: isSandbox(),
+    })
+
   } catch (err) {
+    console.error('[enviar]', err)
     return NextResponse.json({ erro: err.message }, { status: 500 })
   }
 }
