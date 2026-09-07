@@ -35,6 +35,7 @@ npm run dev
 painel.autentique.com.br → Perfil → API → Webhooks
 - URL: `https://SEU-PROJETO.vercel.app/api/webhook`
 - Formato: JSON
+- 
 
 ## Formato do Excel
 | nome | email | cpf | cargo |
