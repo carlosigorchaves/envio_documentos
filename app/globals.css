@@ -1,0 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #f7f8fc;
+  --white:   #ffffff;
+  --border:  #e2e5ef;
+  --border2: #cdd1e0;
+  --muted:   #8891a8;
+  --subtle:  #f0f2f8;
+  --ink:     #0e1117;
+
+  --blue:    #3b5bdb;
+  --blue-lt: #edf2ff;
+  --blue-dk: #2c44b0;
+  --teal:    #0b9488;
+  --teal-lt: #e6fafa;
+  --green:   #15803d;
+  --green-lt:#f0fdf4;
+  --amber:   #b45309;
+  --amber-lt:#fef3c7;
+  --rose:    #be123c;
+  --rose-lt: #fff1f2;
+  --violet:  #7c3aed;
+  --violet-lt:#f5f3ff;
+
+  --r4: 4px; --r8: 8px; --r12: 12px; --r16: 16px;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--subtle); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Adicione ao final do globals.css */
+
+/* Layout */
+.card { background: var(--white); border: 1px solid var(--border); border-radius: var(--r12); padding: 22px; }
+.card-title { font-size: 13px; font-weight: 700; color: var(--ink); margin-bottom: 18px; }
+.divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+
+/* Form */
+.fg { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.fg:last-child { margin-bottom: 0; }
+label { font-size: 12px; font-weight: 600; color: var(--muted); }
+input[type=text], textarea, select {
+  background: var(--white); border: 1.5px solid var(--border); border-radius: var(--r8);
+  color: var(--ink); padding: 9px 12px; font-size: 13px; outline: none;
+  transition: border .15s; width: 100%; font-family: inherit;
+}
+input[type=text]:focus, textarea:focus { border-color: var(--blue); }
+textarea { resize: vertical; }
+
+/* Upload */
+.uzone {
+  border: 2px dashed var(--border); border-radius: var(--r8); padding: 22px 16px;
+  text-align: center; cursor: pointer; transition: all .15s; background: var(--subtle);
+}
+.uzone:hover, .uzone.drag { border-color: var(--blue); background: var(--blue-lt); }
+.uzone-icon { font-size: 26px; }
+.uzone-lbl  { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.uzone-name { font-size: 12px; color: var(--green); margin-top: 5px; font-weight: 600; }
+.hint { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px; border: none; cursor: pointer;
+  border-radius: var(--r8); font-size: 13px; font-weight: 600; transition: all .15s;
+  padding: 8px 16px; font-family: inherit;
+}
+.btn:hover { filter: brightness(.95); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-primary { background: var(--blue); color: #fff; width: 100%; justify-content: center; padding: 12px; font-size: 14px; }
+.btn-primary:hover { background: var(--blue-dk); filter: none; }
+.btn-sm    { background: var(--subtle); color: var(--ink); border: 1px solid var(--border); }
+.btn-teal  { background: var(--teal-lt); color: var(--teal); border: 1px solid #99e2de; }
+.btn-green { background: var(--green-lt); color: var(--green); border: 1px solid #bbf7d0; }
+.btn-rose  { background: var(--rose-lt); color: var(--rose); border: 1px solid #fecdd3; }
+
+/* Stats */
+.stat { background: var(--white); border: 1px solid var(--border); border-radius: var(--r12); padding: 18px; border-left: 4px solid var(--c, var(--border2)); }
+.stat-num { font-size: 30px; font-weight: 800; color: var(--c, var(--ink)); line-height: 1; }
+.stat-lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.stat-pct { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+/* Progress */
+.prog-wrap { display: none; }
+.prog-bar  { height: 6px; background: var(--subtle); border-radius: 3px; overflow: hidden; margin-top: 6px; border: 1px solid var(--border); }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--blue), var(--teal)); border-radius: 3px; transition: width .4s; }
+.prog-lbl  { font-size: 12px; color: var(--muted); }
+
+/* Filtros */
+.sinput { background: var(--white); border: 1.5px solid var(--border); border-radius: var(--r8); color: var(--ink); padding: 7px 12px; font-size: 12px; outline: none; min-width: 200px; transition: border .15s; font-family: inherit; }
+.sinput:focus { border-color: var(--blue); }
+.fbtn { background: var(--subtle); border: 1.5px solid var(--border); color: var(--muted); padding: 5px 13px; font-size: 12px; border-radius: 99px; cursor: pointer; transition: all .15s; font-weight: 500; font-family: inherit; }
+.fbtn.on { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* Tabela */
+.twrap { overflow-x: auto; border-radius: var(--r8); border: 1px solid var(--border); }
+table  { width: 100%; border-collapse: collapse; font-size: 12px; }
+thead  { background: var(--subtle); }
+th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; border-bottom: 1px solid var(--border); }
+td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--subtle); }
+.mono { font-family: 'Courier New', monospace; font-size: 11px; color: var(--muted); }
+
+/* Tags status */
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 99px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.tag::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.tag-pendente    { background: #f1f5f9; color: #64748b; }
+.tag-enviado     { background: var(--blue-lt); color: var(--blue); }
+.tag-visualizado { background: var(--teal-lt); color: var(--teal); }
+.tag-assinado    { background: var(--green-lt); color: var(--green); }
+.tag-rejeitado   { background: var(--rose-lt); color: var(--rose); }
+
+/* Lote pills */
+.lote-pill {
+  background: var(--white); border: 1.5px solid var(--border); border-radius: 99px;
+  padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 8px; transition: all .15s;
+  color: var(--muted); font-family: inherit;
+}
+.lote-pill:hover { border-color: var(--blue); color: var(--blue); }
+.lote-pill.sel   { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* Alerts */
+.alert { display: flex; gap: 10px; padding: 12px 16px; border-radius: var(--r8); font-size: 13px; align-items: flex-start; }
+.alert-info { background: var(--blue-lt); color: var(--blue-dk); border: 1px solid #bfdbfe; }
+.alert-warn { background: var(--amber-lt); color: var(--amber); border: 1px solid #fde68a; }
+
+/* Empty */
+.empty { text-align: center; padding: 48px 20px; color: var(--muted); }
+.empty-icon { font-size: 40px; margin-bottom: 10px; }
+.empty-txt  { font-size: 13px; }
