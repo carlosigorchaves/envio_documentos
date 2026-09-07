@@ -43,3 +43,4 @@ painel.autentique.com.br → Perfil → API → Webhooks
 | João Silva | joao@empresa.com | 000.000.000-00 | Analista |
 
 Colunas extras são salvas automaticamente em `extras` (JSONB).
+
