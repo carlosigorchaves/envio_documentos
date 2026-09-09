@@ -37,21 +37,22 @@ export default function AcompanhamentoPage() {
     finally { setSincronizando(false) }
   }
 
-  // Filtros aplicados
+  // Filtros
   let lista = colaboradores
   if (filtro !== 'todos') lista = lista.filter(c => c.status === filtro)
   if (busca) lista = lista.filter(c =>
     (c.nome||'').toLowerCase().includes(busca.toLowerCase()) ||
     (c.email||'').toLowerCase().includes(busca.toLowerCase()) ||
+    (c.matricula||'').includes(busca) ||
     (c.cpf||'').includes(busca)
   )
 
   const stats = {
-    total:      colaboradores.length,
+    total:       colaboradores.length,
+    enviado:     colaboradores.filter(c => c.status === 'enviado').length,
     visualizado: colaboradores.filter(c => c.status === 'visualizado').length,
-    assinado:   colaboradores.filter(c => c.status === 'assinado').length,
-    pendente:   colaboradores.filter(c => ['pendente','enviado'].includes(c.status)).length,
-    rejeitado:  colaboradores.filter(c => c.status === 'rejeitado').length,
+    assinado:    colaboradores.filter(c => c.status === 'assinado').length,
+    pendente:    colaboradores.filter(c => ['pendente'].includes(c.status)).length,
   }
 
   return (
@@ -66,11 +67,11 @@ export default function AcompanhamentoPage() {
       {/* Stats */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12, marginBottom:20 }}>
         {[
-          { label:'Total',       num: stats.total,       c:'#3b5bdb' },
-          { label:'Enviados',    num: colaboradores.filter(c=>c.status==='enviado').length, c:'#7c3aed' },
-          { label:'Visualizados',num: stats.visualizado, c:'#0b9488' },
-          { label:'Assinados',   num: stats.assinado,    c:'#15803d' },
-          { label:'Aguardando',  num: stats.pendente,    c:'#b45309' },
+          { label:'Total',        num: stats.total,       c:'#3b5bdb' },
+          { label:'Enviados',     num: stats.enviado,     c:'#7c3aed' },
+          { label:'Visualizados', num: stats.visualizado, c:'#0b9488' },
+          { label:'Assinados',    num: stats.assinado,    c:'#15803d' },
+          { label:'Pendentes',    num: stats.pendente,    c:'#b45309' },
         ].map(s => (
           <div key={s.label} className="stat" style={{ '--c': s.c }}>
             <div className="stat-num">{s.num}</div>
@@ -87,10 +88,9 @@ export default function AcompanhamentoPage() {
       <div className="card" style={{ marginBottom:16 }}>
         <div className="card-title">📦 Lotes de envio</div>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          <button
-            className={`lote-pill${loteAtivo===null?' sel':''}`}
-            onClick={() => { setLoteAtivo(null) }}
-          >Todos os lotes</button>
+          <button className={`lote-pill${loteAtivo===null?' sel':''}`} onClick={() => setLoteAtivo(null)}>
+            Todos os lotes
+          </button>
           {lotes.map(l => {
             const pct = l.total ? Math.round((l.assinado||0)/l.total*100) : 0
             return (
@@ -112,7 +112,8 @@ export default function AcompanhamentoPage() {
       {/* Tabela */}
       <div className="card">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignItems:'center', marginBottom:14 }}>
-          <input className="sinput" placeholder="🔍 Buscar nome, email ou CPF…" value={busca} onChange={e => setBusca(e.target.value)}/>
+          <input className="sinput" placeholder="🔍 Buscar nome, email ou matrícula…"
+            value={busca} onChange={e => setBusca(e.target.value)}/>
           <div style={{ flex:1 }}/>
           {['todos','pendente','enviado','visualizado','assinado','rejeitado'].map(f => (
             <button key={f} className={`fbtn${filtro===f?' on':''}`} onClick={() => setFiltro(f)}>
@@ -124,17 +125,25 @@ export default function AcompanhamentoPage() {
         <div className="twrap">
           <table>
             <thead><tr>
-              <th>Nome</th><th>Email</th><th>CPF</th><th>Cargo</th>
-              <th>Status</th><th>Enviado</th><th>Visualizado</th><th>Assinado</th>
+              <th>Matrícula</th>
+              <th>Nome</th>
+              <th>Email</th>
+              <th>Cargo</th>
+              <th>Status</th>
+              <th>Enviado</th>
+              <th>Visualizado</th>
+              <th>Assinado</th>
             </tr></thead>
             <tbody>
               {lista.length === 0 ? (
-                <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>Nenhum colaborador encontrado.</td></tr>
+                <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'var(--muted)' }}>
+                  Nenhum colaborador encontrado.
+                </td></tr>
               ) : lista.map(c => (
                 <tr key={c.id}>
+                  <td className="mono">{c.matricula || c.cpf || '—'}</td>
                   <td><strong>{c.nome||''}</strong></td>
                   <td className="mono">{c.email||''}</td>
-                  <td className="mono">{c.cpf||'—'}</td>
                   <td>{c.cargo||'—'}</td>
                   <td><span className={`tag tag-${c.status}`}>{STATUS_LABEL[c.status]||c.status}</span></td>
                   <td className="mono">{fmtData(c.enviado_em)}</td>
