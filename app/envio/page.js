@@ -6,7 +6,7 @@ import * as XLSX from 'xlsx'
 
 export default function EnvioPage() {
   const router = useRouter()
-  const [modo, setModo]           = useState('padrao') // 'padrao' | 'ocr'
+  const [modo, setModo]           = useState('padrao')
   const [nomeDoc, setNomeDoc]     = useState('')
   const [mensagem, setMensagem]   = useState('')
   const [excelFile, setExcelFile] = useState(null)
@@ -51,7 +51,6 @@ export default function EnvioPage() {
 
     setEnviando(true)
     setProgresso({ show: true, label: 'Enviando arquivos e processando...', pct: 20 })
-    animProgress()
 
     try {
       const res  = await fetch('/api/enviar', { method: 'POST', body: form })
@@ -69,19 +68,20 @@ export default function EnvioPage() {
   }
 
   async function enviarOCR() {
-    if (!pdfFile) return setErro('Selecione o PDF com os contracheques.')
-    if (!nomeDoc) return setErro('Informe o nome do documento.')
+    if (!pdfFile)   return setErro('Selecione o PDF com os contracheques.')
+    if (!excelFile) return setErro('Selecione a planilha Excel com os colaboradores.')
+    if (!nomeDoc)   return setErro('Informe o nome do documento.')
     setErro(''); setResultado(null)
 
     const form = new FormData()
     form.append('pdf', pdfFile)
+    form.append('excel', excelFile)
     form.append('nomeDocumento', nomeDoc)
     form.append('mensagem', mensagem)
 
     setEnviando(true)
     setProgresso({ show: true, label: '🔍 Lendo PDF com OCR — isso pode levar alguns minutos...', pct: 10 })
 
-    // Simula progresso visual enquanto o OCR roda
     let pct = 10
     const iv = setInterval(() => {
       pct = Math.min(pct + 1, 85)
@@ -105,36 +105,27 @@ export default function EnvioPage() {
     }
   }
 
-  function animProgress() {
-    let w = 20
-    const iv = setInterval(() => {
-      if (!enviando && w >= 90) { clearInterval(iv); return }
-      w = Math.min(w + Math.random() * 5, 90)
-      setProgresso(p => ({ ...p, pct: w }))
-    }, 800)
-  }
-
   return (
     <Layout title="Novo envio">
       {/* Seletor de modo */}
       <div style={{ display:'flex', gap:12, marginBottom:20 }}>
         <ModoCard
           ativo={modo==='padrao'}
-          onClick={() => { setModo('padrao'); setErro(''); setResultado(null) }}
+          onClick={() => { setModo('padrao'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null) }}
           icon="📋"
           titulo="Envio padrão"
-          desc="Excel com colaboradores + 1 PDF para todos assinarem"
+          desc="Excel com colaboradores + 1 PDF igual para todos assinarem"
         />
         <ModoCard
           ativo={modo==='ocr'}
-          onClick={() => { setModo('ocr'); setErro(''); setResultado(null) }}
+          onClick={() => { setModo('ocr'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null) }}
           icon="🔍"
           titulo="PDF inteligente (OCR)"
-          desc="1 PDF com múltiplos contracheques — o sistema identifica e separa automaticamente"
+          desc="1 PDF com múltiplos contracheques + Excel com emails — o sistema identifica e separa automaticamente"
         />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns: modo==='padrao' ? '1fr 1fr' : '1fr', gap:20, maxWidth:1100 }}>
+      <div style={{ display:'grid', gridTemplateColumns: modo==='padrao' ? '1fr 1fr' : '1fr 1fr', gap:20, maxWidth:1100 }}>
 
         <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
           <div className="card">
@@ -144,7 +135,7 @@ export default function EnvioPage() {
 
             {modo==='ocr' && (
               <div className="alert alert-info" style={{ marginBottom:14 }}>
-                ℹ️ O sistema vai ler cada página do PDF, identificar a matrícula e nome de cada colaborador via OCR, separar em PDFs individuais e enviar para o email cadastrado no sistema. Certifique-se que os colaboradores já foram cadastrados com a matrícula no campo CPF.
+                ℹ️ O sistema vai ler cada página do PDF via OCR, identificar a matrícula, cruzar com o Excel e enviar o contracheque individual para cada colaborador.
               </div>
             )}
 
@@ -161,21 +152,48 @@ export default function EnvioPage() {
                 placeholder="Ex: Por favor, assine seu contracheque até sexta-feira." rows={3}/>
             </div>
 
-            {modo==='padrao' && (
-              <div className="fg">
-                <label>Planilha Excel * (.xlsx)</label>
-                <UploadZone accept=".xlsx,.xls" icon="📋" label="Clique ou arraste o Excel aqui"
-                  file={excelFile} onChange={f => { setExcelFile(f); lerExcelPreview(f) }}/>
-                <span className="hint">Colunas: <strong>nome</strong> e <strong>email</strong> (obrigatórias) · cpf, cargo (opcionais)</span>
-              </div>
-            )}
-
+            {/* Excel — obrigatório em ambos os modos */}
             <div className="fg">
-              <label>{modo==='ocr' ? 'PDF com todos os contracheques *' : 'Documento PDF a assinar *'}</label>
-              <UploadZone accept=".pdf" icon="📄"
-                label={modo==='ocr' ? 'Clique ou arraste o PDF com todos os contracheques' : 'Clique ou arraste o PDF aqui'}
-                file={pdfFile} onChange={setPdfFile}/>
-              {modo==='ocr' && <span className="hint">O sistema vai processar cada página individualmente com OCR. PDFs grandes podem levar alguns minutos.</span>}
+              <label>
+                {modo==='ocr'
+                  ? 'Planilha Excel * — nome, email, matrícula'
+                  : 'Planilha Excel * — nome, email'}
+              </label>
+              <UploadZone
+                accept=".xlsx,.xls"
+                icon="📋"
+                label="Clique ou arraste o Excel aqui"
+                file={excelFile}
+                onChange={f => { setExcelFile(f); lerExcelPreview(f) }}
+              />
+              <span className="hint">
+                {modo==='ocr'
+                  ? 'Colunas obrigatórias: nome, email, matricula'
+                  : 'Colunas obrigatórias: nome, email · opcionais: matricula, cpf, cargo'}
+              </span>
+            </div>
+
+            <hr className="divider"/>
+
+            {/* PDF */}
+            <div className="fg">
+              <label>
+                {modo==='ocr'
+                  ? 'PDF com todos os contracheques *'
+                  : 'Documento PDF a assinar *'}
+              </label>
+              <UploadZone
+                accept=".pdf"
+                icon="📄"
+                label={modo==='ocr'
+                  ? 'Clique ou arraste o PDF com todos os contracheques'
+                  : 'Clique ou arraste o PDF aqui'}
+                file={pdfFile}
+                onChange={setPdfFile}
+              />
+              {modo==='ocr' && (
+                <span className="hint">O OCR vai ler cada página, identificar a matrícula e separar automaticamente.</span>
+              )}
             </div>
 
             <hr className="divider"/>
@@ -202,46 +220,44 @@ export default function EnvioPage() {
                 <div>📄 Páginas no PDF: <strong>{resultado.totalPaginas}</strong></div>
                 <div>👥 Colaboradores identificados: <strong>{resultado.colaboradoresIdentificados}</strong></div>
                 <div>📨 Documentos enviados: <strong>{resultado.enviados}</strong></div>
-                {resultado.semEmail > 0 && <div style={{ color:'var(--amber)' }}>⚠️ Sem email cadastrado: <strong>{resultado.semEmail}</strong></div>}
+                {resultado.semMatricula > 0 && <div style={{ color:'var(--amber)' }}>⚠️ Matrícula não encontrada no Excel: <strong>{resultado.semMatricula}</strong></div>}
                 {resultado.erros > 0 && <div style={{ color:'var(--rose)' }}>❌ Erros: <strong>{resultado.erros}</strong></div>}
               </div>
             )}
           </div>
         </div>
 
-        {/* Preview Excel — só no modo padrão */}
-        {modo==='padrao' && (
-          <div className="card">
-            <div className="card-title">👥 Colaboradores identificados</div>
-            {!preview ? (
-              <div className="empty" style={{ padding:32 }}>
-                <div className="empty-icon">📋</div>
-                <div className="empty-txt">Selecione a planilha Excel para ver os colaboradores aqui.</div>
+        {/* Preview Excel */}
+        <div className="card">
+          <div className="card-title">👥 Colaboradores identificados</div>
+          {!preview ? (
+            <div className="empty" style={{ padding:32 }}>
+              <div className="empty-icon">📋</div>
+              <div className="empty-txt">Selecione a planilha Excel para ver os colaboradores aqui.</div>
+            </div>
+          ) : preview.erro ? (
+            <div className="alert alert-warn">❌ Erro ao ler planilha: {preview.erro}</div>
+          ) : (
+            <div>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
+                <span className="tag tag-enviado">{preview.total} linhas</span>
+                <span className="tag tag-assinado">{preview.validos} com email válido</span>
+                {preview.total - preview.validos > 0 && <span className="tag tag-rejeitado">{preview.total - preview.validos} ignoradas</span>}
               </div>
-            ) : preview.erro ? (
-              <div className="alert alert-warn">❌ Erro ao ler planilha: {preview.erro}</div>
-            ) : (
-              <div>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
-                  <span className="tag tag-enviado">{preview.total} linhas</span>
-                  <span className="tag tag-assinado">{preview.validos} com email válido</span>
-                  {preview.total - preview.validos > 0 && <span className="tag tag-rejeitado">{preview.total - preview.validos} ignoradas</span>}
-                </div>
-                <div className="twrap">
-                  <table>
-                    <thead><tr>{preview.heads.map(h => <th key={h}>{h}</th>)}</tr></thead>
-                    <tbody>
-                      {preview.sample.map((r, i) => (
-                        <tr key={i}>{preview.heads.map(h => <td key={h} className="mono">{String(r[h]||'')}</td>)}</tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {preview.total > 5 && <div className="hint" style={{ marginTop:6 }}>Mostrando 5 de {preview.total} linhas.</div>}
+              <div className="twrap">
+                <table>
+                  <thead><tr>{preview.heads.map(h => <th key={h}>{h}</th>)}</tr></thead>
+                  <tbody>
+                    {preview.sample.map((r, i) => (
+                      <tr key={i}>{preview.heads.map(h => <td key={h} className="mono">{String(r[h]||'')}</td>)}</tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            )}
-          </div>
-        )}
+              {preview.total > 5 && <div className="hint" style={{ marginTop:6 }}>Mostrando 5 de {preview.total} linhas.</div>}
+            </div>
+          )}
+        </div>
       </div>
     </Layout>
   )
