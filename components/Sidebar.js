@@ -5,10 +5,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const LINKS = [
-  { href: '/envio',          icon: '📤', label: 'Novo envio' },
-  { href: '/acompanhamento', icon: '📊', label: 'Acompanhamento' },
-  { href: '/assinados',      icon: '✅', label: 'Assinados' }, 
-  { href: '/config',         icon: '⚙️', label: 'Configurações' },
+  { href: '/envio',           icon: '📤', label: 'Novo envio' },
+  { href: '/acompanhamento',  icon: '📊', label: 'Acompanhamento' },
+  { href: '/assinados',       icon: '✅', label: 'Assinados' },
+  { href: '/config',          icon: '⚙️', label: 'Configurações' },
+  { href: '/admin/usuarios',  icon: '👥', label: 'Usuários' },
 ]
 
 export default function Sidebar({ sandbox }) {
