@@ -1,4 +1,5 @@
 import './globals.css'
+import AuthGuard from '@/components/AuthGuard'
 
 export const metadata = {
   title: 'Envio de Documentos — Autentique',
@@ -8,7 +9,11 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        <AuthGuard>
+          {children}
+        </AuthGuard>
+      </body>
     </html>
   )
 }
