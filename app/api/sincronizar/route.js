@@ -9,9 +9,11 @@ export const maxDuration = 60
 export async function POST() {
   try {
     const sb = supabaseAdmin()
+
+    // Busca documentos ainda não finalizados
     const { data: pendentes } = await sb
       .from('colaboradores')
-      .select('document_id, email')
+      .select('document_id, email, status, visualizado_em, assinado_em')
       .in('status', ['enviado', 'visualizado'])
       .not('document_id', 'is', null)
 
@@ -23,9 +25,44 @@ export async function POST() {
         const doc = await consultarDocumento(docId)
         for (const sig of (doc.signatures || [])) {
           let ok = false
-          if (sig.rejected) ok = await atualizarStatus(docId, { email: sig.email, status: 'rejeitado', quando: sig.rejected.created_at })
-          else if (sig.signed) ok = await atualizarStatus(docId, { email: sig.email, status: 'assinado', quando: sig.signed.created_at, arquivoUrl: doc.files?.signed })
-          else if (sig.viewed) ok = await atualizarStatus(docId, { email: sig.email, status: 'visualizado', quando: sig.viewed.created_at })
+
+          if (sig.rejected) {
+            ok = await atualizarStatus(docId, {
+              email: sig.email,
+              status: 'rejeitado',
+              quando: sig.rejected.created_at,
+            })
+          } else if (sig.signed) {
+            // Se assinou, garante que visualizado também é preenchido
+            const col = (pendentes || []).find(r => r.document_id === docId && r.email === sig.email)
+            if (col && !col.visualizado_em && sig.viewed) {
+              await atualizarStatus(docId, {
+                email: sig.email,
+                status: 'visualizado',
+                quando: sig.viewed.created_at,
+              })
+            } else if (col && !col.visualizado_em && sig.signed) {
+              // Se não tem viewed mas tem signed, usa o mesmo timestamp do signed
+              await atualizarStatus(docId, {
+                email: sig.email,
+                status: 'visualizado',
+                quando: sig.signed.created_at,
+              })
+            }
+            ok = await atualizarStatus(docId, {
+              email:     sig.email,
+              status:    'assinado',
+              quando:    sig.signed.created_at,
+              arquivoUrl: doc.files?.signed,
+            })
+          } else if (sig.viewed) {
+            ok = await atualizarStatus(docId, {
+              email:  sig.email,
+              status: 'visualizado',
+              quando: sig.viewed.created_at,
+            })
+          }
+
           if (ok) atualizados++
         }
         await new Promise(r => setTimeout(r, 1100))
