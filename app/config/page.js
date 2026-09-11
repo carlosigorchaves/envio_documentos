@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Layout from '@/components/Layout'
+import Layout from '@/components/Layout' 
 
 export default function ConfigPage() {
   const [logoUrl, setLogoUrl]         = useState('')
