@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import Layout from '@/components/Layout'
+import * as XLSX from 'xlsx'
 
 const STATUS_LABEL = { pendente:'Pendente', enviado:'Enviado', visualizado:'Visualizado', assinado:'Assinado', rejeitado:'Rejeitado' }
 const fmtData = iso => !iso ? '—' : new Date(iso).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'})
@@ -37,7 +38,7 @@ export default function AcompanhamentoPage() {
     finally { setSincronizando(false) }
   }
 
-  // Filtros
+  // Filtros aplicados
   let lista = colaboradores
   if (filtro !== 'todos') lista = lista.filter(c => c.status === filtro)
   if (busca) lista = lista.filter(c =>
@@ -52,16 +53,52 @@ export default function AcompanhamentoPage() {
     enviado:     colaboradores.filter(c => c.status === 'enviado').length,
     visualizado: colaboradores.filter(c => c.status === 'visualizado').length,
     assinado:    colaboradores.filter(c => c.status === 'assinado').length,
-    pendente:    colaboradores.filter(c => ['pendente'].includes(c.status)).length,
+    pendente:    colaboradores.filter(c => c.status === 'pendente').length,
+  }
+
+  // Exportar Excel
+  function exportarExcel() {
+    const dados = lista.map(c => ({
+      'Matrícula':    c.matricula || c.cpf || '',
+      'Nome':         c.nome      || '',
+      'Email':        c.email     || '',
+      'Cargo':        c.cargo     || '',
+      'Status':       STATUS_LABEL[c.status] || c.status,
+      'Enviado em':   c.enviado_em    ? new Date(c.enviado_em).toLocaleString('pt-BR')    : '',
+      'Visualizado em': c.visualizado_em ? new Date(c.visualizado_em).toLocaleString('pt-BR') : '',
+      'Assinado em':  c.assinado_em   ? new Date(c.assinado_em).toLocaleString('pt-BR')   : '',
+      'Rejeitado em': c.rejeitado_em  ? new Date(c.rejeitado_em).toLocaleString('pt-BR')  : '',
+      'Lote':         c.lote_id       || '',
+    }))
+
+    const ws  = XLSX.utils.json_to_sheet(dados)
+    const wb  = XLSX.utils.book_new()
+
+    // Larguras das colunas
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 35 }, { wch: 30 }, { wch: 25 },
+      { wch: 14 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 20 }, { wch: 25 },
+    ]
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Acompanhamento')
+
+    const filtroLabel = filtro !== 'todos' ? `_${filtro}` : ''
+    const loteLabel   = loteAtivo ? `_${loteAtivo.slice(-6)}` : ''
+    XLSX.writeFile(wb, `acompanhamento${filtroLabel}${loteLabel}_${new Date().toISOString().slice(0,10)}.xlsx`)
   }
 
   return (
     <Layout
       title="Acompanhamento"
       actions={
-        <button className="btn btn-teal" onClick={sincronizar} disabled={sincronizando}>
-          {sincronizando ? '⏳ Sincronizando…' : '🔄 Sincronizar'}
-        </button>
+        <>
+          <button className="btn btn-green" onClick={exportarExcel} title="Exportar lista atual para Excel">
+            📥 Exportar Excel ({lista.length})
+          </button>
+          <button className="btn btn-teal" onClick={sincronizar} disabled={sincronizando}>
+            {sincronizando ? '⏳ Sincronizando…' : '🔄 Sincronizar'}
+          </button>
+        </>
       }
     >
       {/* Stats */}
@@ -120,6 +157,13 @@ export default function AcompanhamentoPage() {
               {STATUS_LABEL[f] || 'Todos'}
             </button>
           ))}
+        </div>
+
+        {/* Info de registros filtrados */}
+        <div style={{ fontSize:12, color:'var(--muted)', marginBottom:10 }}>
+          Exibindo <strong>{lista.length}</strong> de <strong>{colaboradores.length}</strong> colaboradores
+          {filtro !== 'todos' && ` · Filtro: ${STATUS_LABEL[filtro]}`}
+          {busca && ` · Busca: "${busca}"`}
         </div>
 
         <div className="twrap">
