@@ -53,9 +53,9 @@ export default function Sidebar({ sandbox }) {
       {/* Brand / Logo */}
       <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid var(--border)' }}>
         {cfg.logoUrl ? (
-          <div style={{ marginBottom: 6 }}>
+          <div style={{ textAlign: 'center', marginBottom: 8 }}>
             <img src={cfg.logoUrl} alt="Logo"
-              style={{ maxHeight: 52, maxWidth: '100%', objectFit: 'contain' }}/>
+              style={{ maxHeight: 80, maxWidth: '90%', objectFit: 'contain' }}/>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontWeight: 800, fontSize: 15, marginBottom: 2 }}>
@@ -67,7 +67,7 @@ export default function Sidebar({ sandbox }) {
           </div>
         )}
         {cfg.nomeEmpresa && (
-          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500 }}>
+          <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 500, textAlign: 'center' }}>
             {cfg.nomeEmpresa}
           </div>
         )}
