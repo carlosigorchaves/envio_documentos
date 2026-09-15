@@ -9,7 +9,7 @@ Sistema Next.js para envio em lote de documentos via Autentique, com monitoramen
 
 ### 2. Pegar a Service Role Key
 - Supabase → Settings → API → `service_role` (Secret)
-- Cole em `.env.local` no campo `SUPABASE_SERVICE_ROLE_KEY`
+- Cole em `.env.local` no campo `SUPABASE_SERVICE_ROLE_KEY` 
 
 ### 3. Clonar e rodar localmente
 ```bash
