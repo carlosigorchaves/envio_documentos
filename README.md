@@ -1,4 +1,4 @@
-# envio_documentos
+# envio_documentos 
 
 Sistema Next.js para envio em lote de documentos via Autentique, com monitoramento em tempo real e download dos PDFs assinados. Banco de dados PostgreSQL no Supabase.
 
