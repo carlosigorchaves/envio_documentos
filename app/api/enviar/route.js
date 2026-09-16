@@ -6,8 +6,11 @@ import { criarDocumento, isSandbox } from '@/lib/autentique'
 export const runtime = 'nodejs'
 export const maxDuration = 60
 
-const CAMPOS = ['nome', 'email', 'cpf', 'matricula', 'cargo']
-const normK  = k => String(k).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+const CAMPOS = ['nome', 'email', 'cpf', 'matricula', 'cargo', 'centro_custo', 'situacao']
+const normK  = k => String(k).toLowerCase().normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/\s+/g, '_')
+  .trim()
 
 function lerExcel(buffer) {
   const wb   = XLSX.read(buffer, { type: 'buffer' })
@@ -47,11 +50,15 @@ export async function POST(req) {
     const loteId = 'lote_' + Date.now()
     await inserirLote(colaboradores, loteId)
 
-    // Envio síncrono
     const inseridos  = await buscarPorLote(loteId)
     const resultados = []
 
     for (const col of inseridos) {
+      // Pula demitidos
+      if (col.situacao === 'demitido') {
+        resultados.push({ email: col.email, ok: false, erro: 'Colaborador demitido — ignorado' })
+        continue
+      }
       try {
         const doc = await criarDocumento({
           nome:        `${nomeDoc} - ${col.nome || col.email}`,
@@ -79,12 +86,11 @@ export async function POST(req) {
     const enviados = resultados.filter(r => r.ok).length
     return NextResponse.json({
       ok: true, loteId,
-      total: colaboradores.length,
+      total:   colaboradores.length,
       enviados,
-      erros: resultados.filter(r => !r.ok).length,
+      erros:   resultados.filter(r => !r.ok).length,
       sandbox: isSandbox(),
     })
-
   } catch (err) {
     console.error('[enviar]', err)
     return NextResponse.json({ erro: err.message }, { status: 500 })
