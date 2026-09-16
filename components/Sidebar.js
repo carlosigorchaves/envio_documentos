@@ -5,18 +5,19 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const LINKS = [
-  { href: '/envio',           icon: '📤', label: 'Novo envio' },
-  { href: '/acompanhamento',  icon: '📊', label: 'Acompanhamento' },
-  { href: '/assinados',       icon: '✅', label: 'Assinados' },
-  { href: '/config',          icon: '⚙️', label: 'Configurações' },
-  { href: '/admin/usuarios',  icon: '👥', label: 'Usuários' },
+  { href: '/envio',          icon: '📤', label: 'Novo envio' },
+  { href: '/acompanhamento', icon: '📊', label: 'Acompanhamento' },
+  { href: '/assinados',      icon: '✅', label: 'Assinados' },
+  { href: '/config',         icon: '⚙️', label: 'Configurações' },
+  { href: '/admin/usuarios', icon: '👥', label: 'Usuários' },
 ]
 
-export default function Sidebar({ sandbox }) {
+export default function Sidebar() {
   const path   = usePathname()
   const router = useRouter()
-  const [cfg, setCfg]   = useState({ logoUrl: '', nomeEmpresa: '', corPrimaria: '#3b5bdb' })
-  const [user, setUser] = useState(null)
+  const [cfg, setCfg]         = useState({ logoUrl: '', nomeEmpresa: '', corPrimaria: '#3b5bdb' })
+  const [user, setUser]       = useState(null)
+  const [sandbox, setSandbox] = useState(true)
 
   useEffect(() => {
     function carregarCfg() {
@@ -34,6 +35,9 @@ export default function Sidebar({ sandbox }) {
       if (data?.user) setUser(data.user)
     })
 
+    // Busca modo sandbox/produção dinamicamente
+    fetch('/api/modo').then(r => r.json()).then(d => setSandbox(d.sandbox)).catch(() => {})
+
     return () => window.removeEventListener('ue_config_updated', carregarCfg)
   }, [])
 
@@ -42,7 +46,7 @@ export default function Sidebar({ sandbox }) {
     router.push('/login')
   }
 
-  const nomeUser    = user?.user_metadata?.nome || user?.email?.split('@')[0] || 'Usuário'
+  const nomeUser     = user?.user_metadata?.nome || user?.email?.split('@')[0] || 'Usuário'
   const iniciaisUser = nomeUser.slice(0,2).toUpperCase()
 
   return (
@@ -64,7 +68,7 @@ export default function Sidebar({ sandbox }) {
               <rect width="26" height="26" rx="7" fill={cfg.corPrimaria || '#3b5bdb'}/>
               <path d="M6 13l5 5 9-9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Autentique
+            UE Sign
           </div>
         )}
         {cfg.nomeEmpresa && (
@@ -73,7 +77,7 @@ export default function Sidebar({ sandbox }) {
           </div>
         )}
         {!cfg.nomeEmpresa && !cfg.logoUrl && (
-          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Gestão de documentos</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Assinaturas digitais simplificadas</div>
         )}
       </div>
 
@@ -107,8 +111,7 @@ export default function Sidebar({ sandbox }) {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 9,
               padding: '8px 10px', borderRadius: 'var(--r8)',
-              cursor: 'pointer', transition: 'background .15s',
-              marginBottom: 6,
+              cursor: 'pointer', transition: 'background .15s', marginBottom: 6,
             }}
             onMouseEnter={e => e.currentTarget.style.background='var(--subtle)'}
             onMouseLeave={e => e.currentTarget.style.background='transparent'}
@@ -134,8 +137,7 @@ export default function Sidebar({ sandbox }) {
             width: '100%', display: 'flex', alignItems: 'center', gap: 7,
             padding: '7px 10px', borderRadius: 'var(--r8)',
             background: 'none', border: 'none', cursor: 'pointer',
-            fontSize: 12, color: 'var(--muted)', transition: 'all .15s',
-            marginBottom: 8,
+            fontSize: 12, color: 'var(--muted)', transition: 'all .15s', marginBottom: 8,
           }}
           onMouseEnter={e => { e.currentTarget.style.background='var(--rose-lt)'; e.currentTarget.style.color='var(--rose)' }}
           onMouseLeave={e => { e.currentTarget.style.background='none'; e.currentTarget.style.color='var(--muted)' }}
@@ -143,22 +145,19 @@ export default function Sidebar({ sandbox }) {
             🚪 Sair
           </button>
 
-          {/* Status sandbox/prod */}
+          {/* Badge sandbox/produção — dinâmico via API */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: 6,
             fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 99,
             background: sandbox ? 'var(--amber-lt)' : 'var(--green-lt)',
-            color: sandbox ? 'var(--amber)' : 'var(--green)',
+            color:      sandbox ? 'var(--amber)'    : 'var(--green)',
             marginBottom: 8,
           }}>
             {sandbox ? '⚠️ Sandbox' : '✅ Produção'}
           </div>
 
           {/* Rodapé UE */}
-          <div style={{
-            borderTop: '1px solid var(--border)', paddingTop: 8,
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
+          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{
               width: 18, height: 18, borderRadius: 4,
               background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
