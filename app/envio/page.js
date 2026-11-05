@@ -21,6 +21,8 @@ export default function EnvioPage() {
   const [rmLista, setRmLista]     = useState(null)
   const [rmBuscando, setRmBuscando] = useState(false)
   const [centroSel, setCentroSel] = useState('')
+  const [sincronizando, setSincronizando] = useState(false)
+  const [sincMsg, setSincMsg] = useState('')
 
   function lerExcelPreview(file) {
     const reader = new FileReader()
@@ -69,6 +71,25 @@ export default function EnvioPage() {
       setErro(err.message)
     } finally {
       setRmBuscando(false)
+    }
+  }
+
+  async function sincronizarRM() {
+    setErro(''); setSincMsg(''); setSincronizando(true)
+    try {
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      const token = await pegarToken()
+      const res = await fetch(`${OCR_URL}/rm/sincronizar`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
+      const texto = await res.text()
+      let d
+      try { d = JSON.parse(texto) } catch { throw new Error(`Resposta inesperada (HTTP ${res.status}). ${texto.slice(0,120)}`) }
+      if (d.erro) throw new Error(d.erro)
+      setSincMsg(`✅ Cadastro atualizado: ${d.total} funcionários · ${d.novos} novos · ${d.atualizados} alterados · ${d.removidos} baixados`)
+      await buscarRM()
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setSincronizando(false)
     }
   }
 
@@ -271,9 +292,13 @@ export default function EnvioPage() {
               ) : (
                 <div>
                   <button type="button" className="btn btn-primary" onClick={buscarRM} disabled={rmBuscando}>
-                    {rmBuscando ? '⏳ Buscando no RM...' : (rmLista ? '🔄 Buscar novamente' : '🔗 Buscar do RM')}
+                    {rmBuscando ? '⏳ Carregando...' : (rmLista ? '🔄 Recarregar cadastro' : '🔗 Buscar do RM')}
                   </button>
-                  {rmLista && <span className="hint" style={{ marginLeft:10 }}>{rmLista.length} registros carregados do RM</span>}
+                  <button type="button" className="btn" style={{ marginLeft:8 }} onClick={sincronizarRM} disabled={sincronizando || rmBuscando}>
+                    {sincronizando ? '⏳ Sincronizando com o RM...' : '♻️ Sincronizar com o RM'}
+                  </button>
+                  {sincMsg && <div className="hint" style={{ marginTop:6 }}>{sincMsg}</div>}
+                  {rmLista && <span className="hint" style={{ marginLeft:10 }}>{rmLista.length} registros no cadastro</span>}
                   {rmLista && modo==='padrao' && centrosRM.length > 0 && (
                     <div style={{ marginTop:10 }}>
                       <label>Filtrar por centro de custo</label>
@@ -288,7 +313,7 @@ export default function EnvioPage() {
                       )}
                     </div>
                   )}
-                  <span className="hint">Os dados vêm direto do cadastro de funcionários do RM. Demitidos não recebem o documento.</span>
+                  <span className="hint">Os dados vêm do cadastro de funcionários (carga do RM); use Sincronizar para trazer admissões, alterações e desligamentos. Demitidos não recebem o documento.</span>
                 </div>
               )}
             </div>
