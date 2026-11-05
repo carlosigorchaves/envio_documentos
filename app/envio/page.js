@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useRef } from 'react'
 import Layout from '@/components/Layout'
 import { useRouter } from 'next/navigation'
@@ -52,16 +51,38 @@ export default function EnvioPage() {
     form.append('mensagem', mensagem)
 
     setEnviando(true)
-    setProgresso({ show: true, label: 'Enviando arquivos e processando...', pct: 20 })
+    setProgresso({ show: true, label: 'Enviando arquivos e criando documentos na Autentique...', pct: 10 })
+
+    let pct = 10
+    const iv = setInterval(() => {
+      pct = Math.min(pct + 1, 90)
+      setProgresso(p => ({ ...p, pct, label: `Enviando documentos para assinatura... ${pct}%` }))
+    }, 2000)
 
     try {
-      const res  = await fetch('/api/enviar', { method: 'POST', body: form })
-      const data = await res.json()
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      if (!OCR_URL) throw new Error('NEXT_PUBLIC_OCR_SERVICE_URL não configurada no Vercel.')
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.')
+
+      // Arquivos vão direto ao Railway (o Vercel recusa arquivos acima de 4,5 MB)
+      const res = await fetch(`${OCR_URL}/enviar-padrao`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      })
+      clearInterval(iv)
+      const texto = await res.text()
+      let data
+      try { data = JSON.parse(texto) }
+      catch { throw new Error(`O servidor respondeu de forma inesperada (HTTP ${res.status}). ${texto.slice(0,120)}`) }
       if (data.erro) throw new Error(data.erro)
       setProgresso({ show: true, label: `✅ ${data.enviados}/${data.total} documentos enviados!`, pct: 100 })
       setResultado(data)
       setTimeout(() => router.push('/acompanhamento'), 2500)
     } catch(err) {
+      clearInterval(iv)
       setErro(err.message)
       setProgresso({ show: false, label: '', pct: 0 })
     } finally {
@@ -170,11 +191,7 @@ export default function EnvioPage() {
 
             {/* Excel — obrigatório em ambos os modos */}
             <div className="fg">
-              <label>
-                {modo==='ocr'
-                  ? 'Planilha Excel * — nome, email, matrícula'
-                  : 'Planilha Excel * — nome, email'}
-              </label>
+              <label>Planilha Excel * — nome, email, matrícula</label>
               <UploadZone
                 accept=".xlsx,.xls"
                 icon="📋"
