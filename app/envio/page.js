@@ -17,6 +17,10 @@ export default function EnvioPage() {
   const [progresso, setProgresso] = useState({ show: false, label: '', pct: 0 })
   const [resultado, setResultado] = useState(null)
   const [erro, setErro]           = useState('')
+  const [fonte, setFonte]         = useState('excel')   // 'excel' | 'rm'
+  const [rmLista, setRmLista]     = useState(null)
+  const [rmBuscando, setRmBuscando] = useState(false)
+  const [centroSel, setCentroSel] = useState('')
 
   function lerExcelPreview(file) {
     const reader = new FileReader()
@@ -38,14 +42,62 @@ export default function EnvioPage() {
     reader.readAsArrayBuffer(file)
   }
 
+  async function pegarToken() {
+    const { data: sess } = await supabase.auth.getSession()
+    const token = sess?.session?.access_token
+    if (!token) throw new Error('Sessão expirada. Faça login novamente.')
+    return token
+  }
+
+  async function buscarRM() {
+    setErro(''); setRmBuscando(true); setRmLista(null); setPreview(null)
+    try {
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      if (!OCR_URL) throw new Error('NEXT_PUBLIC_OCR_SERVICE_URL não configurada no Vercel.')
+      const token = await pegarToken()
+      const res = await fetch(`${OCR_URL}/rm/colaboradores`, { headers: { Authorization: `Bearer ${token}` } })
+      const texto = await res.text()
+      let data
+      try { data = JSON.parse(texto) }
+      catch { throw new Error(`O servidor respondeu de forma inesperada (HTTP ${res.status}). ${texto.slice(0,120)}`) }
+      if (data.erro) throw new Error(data.erro)
+      const lista = data.colaboradores || []
+      setRmLista(lista)
+      setCentroSel('')
+      montarPreviewRM(lista, '')
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setRmBuscando(false)
+    }
+  }
+
+  function montarPreviewRM(lista, centro) {
+    const base = centro ? lista.filter(c => String(c.centro_custo) === centro) : lista
+    const ativos = base.filter(c => c.situacao !== 'demitido')
+    const comEmail = ativos.filter(c => c.email && c.email.includes('@'))
+    setPreview({
+      rm: true,
+      heads: ['matricula', 'nome', 'email', 'centro_custo', 'situacao'],
+      total: base.length, validos: comEmail.length,
+      ativos: ativos.length, demitidos: base.length - ativos.length,
+      semEmail: ativos.length - comEmail.length,
+      sample: comEmail.slice(0, 5),
+    })
+  }
+
+  const centrosRM = rmLista ? [...new Set(rmLista.map(c => String(c.centro_custo || '')).filter(Boolean))].sort() : []
+
   async function enviarPadrao() {
-    if (!excelFile) return setErro('Selecione a planilha Excel.')
+    if (fonte==='excel' && !excelFile) return setErro('Selecione a planilha Excel.')
+    if (fonte==='rm' && !rmLista)      return setErro('Clique em "Buscar do RM" para carregar os colaboradores.')
     if (!pdfFile)   return setErro('Selecione o PDF do documento.')
     if (!nomeDoc)   return setErro('Informe o nome do documento.')
     setErro(''); setResultado(null)
 
     const form = new FormData()
-    form.append('excel', excelFile)
+    if (fonte==='excel') form.append('excel', excelFile)
+    else { form.append('fonte', 'rm'); form.append('centroCusto', centroSel) }
     form.append('pdf', pdfFile)
     form.append('nomeDocumento', nomeDoc)
     form.append('mensagem', mensagem)
@@ -92,13 +144,15 @@ export default function EnvioPage() {
 
   async function enviarOCR() {
     if (!pdfFile)   return setErro('Selecione o PDF com os contracheques.')
-    if (!excelFile) return setErro('Selecione a planilha Excel com os colaboradores.')
+    if (fonte==='excel' && !excelFile) return setErro('Selecione a planilha Excel com os colaboradores.')
+    if (fonte==='rm' && !rmLista)      return setErro('Clique em "Buscar do RM" para carregar os colaboradores.')
     if (!nomeDoc)   return setErro('Informe o nome do documento.')
     setErro(''); setResultado(null)
 
     const form = new FormData()
     form.append('pdf', pdfFile)
-    form.append('excel', excelFile)
+    if (fonte==='excel') form.append('excel', excelFile)
+    else form.append('fonte', 'rm')
     form.append('nomeDocumento', nomeDoc)
     form.append('mensagem', mensagem)
 
@@ -148,14 +202,14 @@ export default function EnvioPage() {
       <div style={{ display:'flex', gap:12, marginBottom:20 }}>
         <ModoCard
           ativo={modo==='padrao'}
-          onClick={() => { setModo('padrao'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null) }}
+          onClick={() => { setModo('padrao'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null); setRmLista(null); setCentroSel('') }}
           icon="📋"
           titulo="Envio padrão"
           desc="Excel com colaboradores + 1 PDF igual para todos assinarem"
         />
         <ModoCard
           ativo={modo==='ocr'}
-          onClick={() => { setModo('ocr'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null) }}
+          onClick={() => { setModo('ocr'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null); setRmLista(null); setCentroSel('') }}
           icon="🔍"
           titulo="PDF inteligente (OCR)"
           desc="1 PDF com múltiplos contracheques + Excel com emails — o sistema identifica e separa automaticamente"
@@ -189,21 +243,54 @@ export default function EnvioPage() {
                 placeholder="Ex: Por favor, assine seu contracheque até sexta-feira." rows={3}/>
             </div>
 
-            {/* Excel — obrigatório em ambos os modos */}
+            {/* Fonte dos colaboradores: Excel ou TOTVS RM */}
             <div className="fg">
-              <label>Planilha Excel * — nome, email, matrícula</label>
-              <UploadZone
-                accept=".xlsx,.xls"
-                icon="📋"
-                label="Clique ou arraste o Excel aqui"
-                file={excelFile}
-                onChange={f => { setExcelFile(f); lerExcelPreview(f) }}
-              />
-              <span className="hint">
-                {modo==='ocr'
-                  ? 'Colunas obrigatórias: nome, email, matricula · opcionais: cargo, centro_custo, situacao (ativo/demitido)'
-                  : 'Colunas obrigatórias: nome, email, matricula · opcionais: cpf, cargo, centro_custo, situacao'}
-              </span>
+              <label>Fonte dos colaboradores *</label>
+              <div style={{ display:'flex', gap:8, marginBottom:10 }}>
+                <button type="button" className={fonte==='excel' ? 'btn btn-primary' : 'btn'}
+                  onClick={() => { setFonte('excel'); setPreview(null); setRmLista(null); setErro('') }}>📋 Planilha Excel</button>
+                <button type="button" className={fonte==='rm' ? 'btn btn-primary' : 'btn'}
+                  onClick={() => { setFonte('rm'); setPreview(null); setExcelFile(null); setErro('') }}>🔗 TOTVS RM</button>
+              </div>
+
+              {fonte==='excel' ? (
+                <div>
+                  <UploadZone
+                    accept=".xlsx,.xls"
+                    icon="📋"
+                    label="Clique ou arraste o Excel aqui"
+                    file={excelFile}
+                    onChange={f => { setExcelFile(f); lerExcelPreview(f) }}
+                  />
+                  <span className="hint">
+                    {modo==='ocr'
+                      ? 'Colunas obrigatórias: nome, email, matricula · opcionais: cargo, centro_custo, situacao (ativo/demitido)'
+                      : 'Colunas obrigatórias: nome, email, matricula · opcionais: cpf, cargo, centro_custo, situacao'}
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <button type="button" className="btn btn-primary" onClick={buscarRM} disabled={rmBuscando}>
+                    {rmBuscando ? '⏳ Buscando no RM...' : (rmLista ? '🔄 Buscar novamente' : '🔗 Buscar do RM')}
+                  </button>
+                  {rmLista && <span className="hint" style={{ marginLeft:10 }}>{rmLista.length} registros carregados do RM</span>}
+                  {rmLista && modo==='padrao' && centrosRM.length > 0 && (
+                    <div style={{ marginTop:10 }}>
+                      <label>Filtrar por centro de custo</label>
+                      <select value={centroSel} onChange={e => { setCentroSel(e.target.value); montarPreviewRM(rmLista, e.target.value) }}>
+                        <option value="">Todos</option>
+                        {centrosRM.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                      {preview?.rm && preview.validos > 200 && (
+                        <div className="hint" style={{ marginTop:6 }}>
+                          ⚠️ {preview.validos} destinatários: o envio leva cerca de 1 segundo por pessoa. Para listas grandes, filtre por centro de custo.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  <span className="hint">Os dados vêm direto do cadastro de funcionários do RM. Demitidos não recebem o documento.</span>
+                </div>
+              )}
             </div>
 
             <hr className="divider"/>
@@ -273,9 +360,15 @@ export default function EnvioPage() {
           ) : (
             <div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:14 }}>
-                <span className="tag tag-enviado">{preview.total} linhas</span>
+                <span className="tag tag-enviado">{preview.total} {preview.rm ? 'registros' : 'linhas'}</span>
                 <span className="tag tag-assinado">{preview.validos} com email válido</span>
-                {preview.total - preview.validos > 0 && <span className="tag tag-rejeitado">{preview.total - preview.validos} ignoradas</span>}
+                {preview.rm
+                  ? <>
+                      <span className="tag tag-enviado">{preview.ativos} ativos</span>
+                      {preview.demitidos > 0 && <span className="tag tag-rejeitado">{preview.demitidos} demitidos (não recebem)</span>}
+                      {preview.semEmail > 0 && <span className="tag tag-rejeitado">{preview.semEmail} ativos sem email</span>}
+                    </>
+                  : preview.total - preview.validos > 0 && <span className="tag tag-rejeitado">{preview.total - preview.validos} ignoradas</span>}
               </div>
               <div className="twrap">
                 <table>
