@@ -207,7 +207,8 @@ export default function EnvioPage() {
       if (data.erro) throw new Error(data.erro)
       setProgresso({ show: true, label: `✅ ${data.enviados} documento(s) enviado(s) de ${data.colaboradoresIdentificados} identificados!`, pct: 100 })
       setResultado(data)
-      setTimeout(() => router.push('/acompanhamento'), 3000)
+      // se houver páginas para conferir, fica na tela para a pessoa ler o resumo
+      if (!(data.paraConferir?.length || data.naoIdentificadas?.length)) setTimeout(() => router.push('/acompanhamento'), 3000)
     } catch(err) {
       clearInterval(iv)
       setErro(err.message)
@@ -367,6 +368,18 @@ export default function EnvioPage() {
                 <div>📨 Documentos enviados: <strong>{resultado.enviados}</strong></div>
                 {resultado.semMatricula > 0 && <div style={{ color:'var(--amber)' }}>⚠️ Matrícula não encontrada no Excel: <strong>{resultado.semMatricula}</strong></div>}
                 {resultado.erros > 0 && <div style={{ color:'var(--rose)' }}>❌ Erros: <strong>{resultado.erros}</strong></div>}
+                {resultado.paginasAnexadas > 0 && <div>📎 Páginas sem identificação anexadas ao documento anterior: <strong>{resultado.paginasAnexadas}</strong></div>}
+                {resultado.paraConferir?.length > 0 && (
+                  <div style={{ color:'var(--amber)', marginTop:6 }}>
+                    ⚠️ <strong>{resultado.paraConferir.length}</strong> para conferir (não foram enviados):
+                    {resultado.paraConferir.map((c, i) => (
+                      <div key={i} style={{ marginLeft:14, fontSize:12 }}>
+                        pág. {c.paginas.join(', ')} — {c.motivo}{c.sugestao ? ` (${c.sugestao.matricula} · ${c.sugestao.nome})` : ''}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {resultado.naoIdentificadas?.length > 0 && <div style={{ color:'var(--amber)' }}>❓ Páginas sem identificação: <strong>{resultado.naoIdentificadas.join(', ')}</strong></div>}
               </div>
             )}
           </div>
