@@ -23,6 +23,9 @@ export default function EnvioPage() {
   const [centroSel, setCentroSel] = useState('')
   const [sincronizando, setSincronizando] = useState(false)
   const [sincMsg, setSincMsg] = useState('')
+  const [sel, setSel] = useState({})          // páginas "para conferir" marcadas para envio
+  const [confEnv, setConfEnv] = useState(false)
+  const [confMsg, setConfMsg] = useState('')
 
   function lerExcelPreview(file) {
     const reader = new FileReader()
@@ -90,6 +93,45 @@ export default function EnvioPage() {
       setErro(err.message)
     } finally {
       setSincronizando(false)
+    }
+  }
+
+  async function confirmarSelecionados() {
+    const itens = (resultado?.paraConferir || []).filter((c, i) => sel[i] && c.sugestao)
+    if (!itens.length) return
+    const porMat = {}
+    itens.forEach(c => { const m = c.sugestao.matricula; porMat[m] = [...(porMat[m] || []), ...c.paginas] })
+    const confirmacoes = Object.entries(porMat).map(([matricula, paginas]) => ({
+      matricula, paginas: [...new Set(paginas)].sort((a, b) => a - b),
+    }))
+    setErro(''); setConfMsg(''); setConfEnv(true)
+    try {
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      const token = await pegarToken()
+      const form = new FormData()
+      form.append('pdf', pdfFile)
+      if (fonte==='excel') form.append('excel', excelFile)
+      else form.append('fonte', 'rm')
+      form.append('nomeDocumento', nomeDoc)
+      form.append('mensagem', mensagem)
+      form.append('confirmacoes', JSON.stringify(confirmacoes))
+      const res = await fetch(`${OCR_URL}/enviar-paginas`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: form })
+      const texto = await res.text()
+      let d
+      try { d = JSON.parse(texto) } catch { throw new Error(`Resposta inesperada (HTTP ${res.status}). ${texto.slice(0,120)}`) }
+      if (d.erro) throw new Error(d.erro)
+      const okMats = new Set(d.resultados.filter(r => r.ok).map(r => String(r.matricula)))
+      setConfMsg(`✅ ${d.enviados} documento(s) enviado(s)` + (d.erros ? ` · ❌ ${d.erros} com erro` : ''))
+      setResultado(r => ({
+        ...r,
+        paraConferir: r.paraConferir.filter((c, i) => !(sel[i] && c.sugestao && okMats.has(String(c.sugestao.matricula)))),
+        enviados: (r.enviados || 0) + d.enviados,
+      }))
+      setSel({})
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setConfEnv(false)
     }
   }
 
@@ -373,10 +415,23 @@ export default function EnvioPage() {
                   <div style={{ color:'var(--amber)', marginTop:6 }}>
                     ⚠️ <strong>{resultado.paraConferir.length}</strong> para conferir (não foram enviados):
                     {resultado.paraConferir.map((c, i) => (
-                      <div key={i} style={{ marginLeft:14, fontSize:12 }}>
-                        pág. {c.paginas.join(', ')} — {c.motivo}{c.sugestao ? ` (${c.sugestao.matricula} · ${c.sugestao.nome})` : ''}
-                      </div>
+                      <label key={i} style={{ display:'flex', gap:8, alignItems:'flex-start', marginLeft:14, marginTop:4, fontSize:12, cursor: c.sugestao ? 'pointer' : 'default' }}>
+                        {c.sugestao
+                          ? <input type="checkbox" checked={!!sel[i]} onChange={e => setSel(s => ({ ...s, [i]: e.target.checked }))}/>
+                          : <span style={{ width:13 }}/>}
+                        <span>
+                          pág. {c.paginas.join(', ')} — {c.motivo}
+                          {c.sugestao && <strong> → enviar para {c.sugestao.nome} ({c.sugestao.matricula})</strong>}
+                        </span>
+                      </label>
                     ))}
+                    {Object.values(sel).some(Boolean) && (
+                      <button type="button" className="btn btn-primary" style={{ marginTop:8, marginLeft:14 }}
+                        onClick={confirmarSelecionados} disabled={confEnv}>
+                        {confEnv ? '⏳ Enviando...' : '✅ Confirmar e enviar selecionados'}
+                      </button>
+                    )}
+                    {confMsg && <div style={{ marginLeft:14, marginTop:6 }}>{confMsg}</div>}
                   </div>
                 )}
                 {resultado.naoIdentificadas?.length > 0 && <div style={{ color:'var(--amber)' }}>❓ Páginas sem identificação: <strong>{resultado.naoIdentificadas.join(', ')}</strong></div>}
