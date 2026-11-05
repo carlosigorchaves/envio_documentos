@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase'
 
 export default function EnvioPage() {
   const router = useRouter()
-  const [modo, setModo]           = useState('padrao')
+  const [modo, setModo]           = useState('ocr')
   const [nomeDoc, setNomeDoc]     = useState('')
   const [mensagem, setMensagem]   = useState('')
   const [excelFile, setExcelFile] = useState(null)
@@ -26,6 +26,8 @@ export default function EnvioPage() {
   const [sel, setSel] = useState({})          // páginas "para conferir" marcadas para envio
   const [confEnv, setConfEnv] = useState(false)
   const [confMsg, setConfMsg] = useState('')
+  const [conf, setConf] = useState(null)      // janela de confirmação antes do envio
+  const [confTexto, setConfTexto] = useState('')
 
   function lerExcelPreview(file) {
     const reader = new FileReader()
@@ -151,6 +153,35 @@ export default function EnvioPage() {
 
   const centrosRM = rmLista ? [...new Set(rmLista.map(c => String(c.centro_custo || '')).filter(Boolean))].sort() : []
 
+  function validar() {
+    if (fonte==='excel' && !excelFile) return 'Selecione a planilha Excel.'
+    if (fonte==='rm' && !rmLista)      return 'Clique em "Buscar do RM" para carregar os colaboradores.'
+    if (!pdfFile)                      return modo==='ocr' ? 'Selecione o PDF com os documentos.' : 'Selecione o PDF do documento.'
+    if (!nomeDoc)                      return 'Informe o nome do documento.'
+    return ''
+  }
+
+  // Abre a janela de confirmação: mostra o modo, a quantidade e se o Autentique está em teste ou real
+  async function abrirConfirmacao() {
+    const msg = validar()
+    if (msg) return setErro(msg)
+    setErro(''); setConfTexto('')
+    let sandbox = null
+    try {
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      const r = await fetch(`${OCR_URL}/health`)
+      sandbox = (await r.json()).sandbox
+    } catch {}
+    const qtd = modo==='padrao' ? (preview?.validos ?? 0) : null
+    setConf({ modo, fonte, qtd, sandbox, pdf: pdfFile?.name, centro: centroSel })
+  }
+
+  function executarEnvio() {
+    const m = conf?.modo
+    setConf(null)
+    if (m==='padrao') enviarPadrao(); else enviarOCR()
+  }
+
   async function enviarPadrao() {
     if (fonte==='excel' && !excelFile) return setErro('Selecione a planilha Excel.')
     if (fonte==='rm' && !rmLista)      return setErro('Clique em "Buscar do RM" para carregar os colaboradores.')
@@ -265,18 +296,18 @@ export default function EnvioPage() {
       {/* Seletor de modo */}
       <div style={{ display:'flex', gap:12, marginBottom:20 }}>
         <ModoCard
-          ativo={modo==='padrao'}
-          onClick={() => { setModo('padrao'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null); setRmLista(null); setCentroSel('') }}
-          icon="📋"
-          titulo="Envio padrão"
-          desc="Excel com colaboradores + 1 PDF igual para todos assinarem"
-        />
-        <ModoCard
           ativo={modo==='ocr'}
           onClick={() => { setModo('ocr'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null); setRmLista(null); setCentroSel('') }}
           icon="🔍"
           titulo="PDF inteligente (OCR)"
           desc="1 PDF com múltiplos contracheques + Excel com emails — o sistema identifica e separa automaticamente"
+        />
+        <ModoCard
+          ativo={modo==='padrao'}
+          onClick={() => { setModo('padrao'); setErro(''); setResultado(null); setExcelFile(null); setPdfFile(null); setPreview(null); setRmLista(null); setCentroSel('') }}
+          icon="📋"
+          titulo="Envio padrão"
+          desc="Excel com colaboradores + 1 PDF igual para todos assinarem"
         />
       </div>
 
@@ -386,7 +417,7 @@ export default function EnvioPage() {
 
             <hr className="divider"/>
             <button className="btn btn-primary"
-              onClick={modo==='padrao' ? enviarPadrao : enviarOCR}
+              onClick={abrirConfirmacao}
               disabled={enviando}>
               {enviando
                 ? (modo==='ocr' ? '🔍 Processando OCR...' : '⏳ Enviando...')
@@ -478,6 +509,34 @@ export default function EnvioPage() {
           )}
         </div>
       </div>
+      {conf && (() => {
+        const grande = conf.modo==='padrao' && conf.qtd > 50
+        const podeEnviar = !grande || confTexto.trim() === String(conf.qtd)
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16 }}>
+            <div className="card" style={{ maxWidth:480, width:'100%', background:'var(--white)' }}>
+              <div className="card-title">Confirmar envio</div>
+              <div style={{ fontSize:13, lineHeight:1.7 }}>
+                <div><strong>Modo:</strong> {conf.modo==='ocr' ? '🔍 PDF inteligente (OCR) — cada pessoa recebe só as páginas dela' : '📋 Envio padrão — o MESMO PDF inteiro vai para cada pessoa'}</div>
+                <div><strong>Colaboradores:</strong> {conf.fonte==='rm' ? '🔗 TOTVS RM' : '📋 Planilha Excel'}{conf.centro ? ` · centro de custo ${conf.centro}` : ''}</div>
+                <div><strong>Arquivo:</strong> {conf.pdf}</div>
+                <div><strong>Destinatários:</strong> {conf.modo==='padrao' ? <b>{conf.qtd} pessoas</b> : 'uma pessoa por documento identificado no PDF'}</div>
+                <div><strong>Ambiente:</strong> {conf.sandbox === true ? '🧪 Teste (sandbox) — ninguém recebe de verdade' : conf.sandbox === false ? <b style={{ color:'var(--rose)' }}>⚠️ REAL — os colaboradores recebem o e-mail agora</b> : 'não foi possível confirmar (trate como REAL)'}</div>
+              </div>
+              {grande && (
+                <div className="fg" style={{ marginTop:12 }}>
+                  <label>Para confirmar, digite o número de destinatários ({conf.qtd})</label>
+                  <input type="text" value={confTexto} onChange={e => setConfTexto(e.target.value)} placeholder={String(conf.qtd)} autoFocus/>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8, marginTop:14, justifyContent:'flex-end' }}>
+                <button type="button" className="btn" onClick={() => setConf(null)}>Cancelar</button>
+                <button type="button" className="btn btn-primary" onClick={executarEnvio} disabled={!podeEnviar}>Confirmar e enviar</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </Layout>
   )
 }
