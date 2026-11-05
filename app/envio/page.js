@@ -3,6 +3,7 @@ import { useState, useRef } from 'react'
 import Layout from '@/components/Layout'
 import { useRouter } from 'next/navigation'
 import * as XLSX from 'xlsx'
+import { supabase } from '@/lib/supabase'
 
 export default function EnvioPage() {
   const router = useRouter()
@@ -89,9 +90,23 @@ export default function EnvioPage() {
     }, 3000)
 
     try {
-      const res  = await fetch('/api/processar-pdf', { method: 'POST', body: form })
+      const OCR_URL = process.env.NEXT_PUBLIC_OCR_SERVICE_URL
+      if (!OCR_URL) throw new Error('NEXT_PUBLIC_OCR_SERVICE_URL não configurada no Vercel.')
+      const { data: sess } = await supabase.auth.getSession()
+      const token = sess?.session?.access_token
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.')
+
+      // PDF vai direto ao Railway (o Vercel recusa arquivos acima de 4,5 MB)
+      const res  = await fetch(`${OCR_URL}/processar`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: form,
+      })
       clearInterval(iv)
-      const data = await res.json()
+      const texto = await res.text()
+      let data
+      try { data = JSON.parse(texto) }
+      catch { throw new Error(`O servidor de OCR respondeu de forma inesperada (HTTP ${res.status}). ${texto.slice(0,120)}`) }
       if (data.erro) throw new Error(data.erro)
       setProgresso({ show: true, label: `✅ ${data.enviados} documento(s) enviado(s) de ${data.colaboradoresIdentificados} identificados!`, pct: 100 })
       setResultado(data)
@@ -168,8 +183,8 @@ export default function EnvioPage() {
               />
               <span className="hint">
                 {modo==='ocr'
-                  ? 'Colunas obrigatórias: nome, email, matricula'
-                  : 'Colunas obrigatórias: nome, email · opcionais: matricula, cpf, cargo'}
+                  ? 'Colunas obrigatórias: nome, email, matricula · opcionais: cargo, centro_custo, situacao (ativo/demitido)'
+                  : 'Colunas obrigatórias: nome, email, matricula · opcionais: cpf, cargo, centro_custo, situacao'}
               </span>
             </div>
 
